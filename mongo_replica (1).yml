@@ -1,0 +1,23 @@
+---
+
+- hosts: all
+  user: root
+
+  tasks:
+
+        #  - name: List collections and stringify the output
+        #community.mongodb.mongodb_shell:
+        #eval: "rs.add( { host: 'mongo.slave1.in:27017', priority: 1, votes: 1 } )"
+        #
+  - name: Replica initiate
+    community.mongodb.mongodb_shell:
+      login_user: admin
+      login_password: admin@123
+      eval: "rs.initiate()"
+
+  - name: Add slave server
+    community.mongodb.mongodb_shell:
+      login_user: admin
+      login_password: admin@123
+      eval: "rs.add( { host: 'mongo.slave1.in:27017', priority: 1, votes: 1 } )"
+

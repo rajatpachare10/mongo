@@ -1,0 +1,102 @@
+---
+- hosts: all
+  user: root
+
+  tasks:
+
+  - name: Installation required packages & percona mongodb server
+    command: amazon-linux-extras install epel -y
+
+      #- name: Installing percona mongo server packages
+      #command: yum install https://repo.percona.com/yum/percona-release-latest.noarch.rpm -y
+
+  - name: Download Percona repo
+    get_url:
+      url: https://repo.percona.com/yum/percona-release-latest.noarch.rpm
+      dest: /root/
+
+  - name: Install package.
+    yum:
+      name: /root/percona-release-latest.noarch.rpm
+      state: present
+
+  - name: Enable percona mongo server
+    command: percona-release enable psmdb-44 release
+
+  - name: Install percona mongo server
+    yum:
+      name: percona-server-mongodb
+      state: latest
+
+  - name: Set hostname
+    command: hostnamectl set-hostname mongo.slave1.in
+
+  - name: IP config mongo.conf
+    command: sed -i 's/127.0.0.1/0.0.0.0/g' /etc/mongod.conf
+
+  - name: setting hostname
+    ansible.builtin.shell: echo "$(hostname -I | awk '{print $1}')  $(hostname -f)" >> /etc/hosts
+
+  - name: restart mongod
+    service:
+      name: mongod
+      state: restarted
+
+        #- name: Do not count this as a failure
+        #ansible.builtin.command: /bin/false
+
+        #  - block:
+        #- name: List collections and stringify the output
+        #community.mongodb.mongodb_shell:
+        #eval: "db.getSiblingDB('admin').createUser({user: 'admin', pwd: 'admin@123', roles: ['root']})"
+        #ignore_errors: yes
+
+
+  - name: List collections and stringify the output
+    community.mongodb.mongodb_shell:
+      eval: "db.getSiblingDB('admin').createUser({user: 'admin', pwd: 'admin@123', roles: ['root']})"
+
+
+  - name: Creates directory for mongo-key file
+    file:
+      path: /var/mongo-key
+      state: directory
+      owner: mongod
+      group: mongod
+      mode: 0775
+      recurse: yes
+
+  - name: Copy file with owner and permissions
+    copy:
+      src: /root/mongodb-keyfile
+      dest: /var/mongo-key/
+      owner: mongod
+      group: mongod
+      mode: 0600
+
+
+  - name: add services
+    blockinfile:
+      state: present
+      insertafter: EOF
+      dest: /etc/mongod.conf
+      content: |
+        security:
+          authorization: enabled
+          keyFile: /var/mongo-key/mongodb-keyfile
+          redactClientLogData: true
+          relaxPermChecks: true
+
+        setParameter:
+          enableLocalhostAuthBypass: false
+          auditAuthorizationSuccess: true
+
+        replication:
+          replSetName: "cluster"
+
+
+  - name: restart mongod
+    service:
+      name: mongod
+      state: restarted
+
